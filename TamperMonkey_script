@@ -1,0 +1,77 @@
+// ==UserScript==
+// @name         TamperMonkey PowerToys
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  TamperMonkey PowerToys : keyboard shortcuts for useful operations.
+// @author       dpamar
+// @match        https://*
+// @grant    GM_setClipboard
+// ==/UserScript==
+
+//Utility functions
+//... add here any kind of function you may want to handle with shortcuts
+//... Parameters are possible, but note it should be either
+//... - hardcoded constant value
+//... - value evaluated on page load
+//... - or for dynamic values, use eval
+function setClipboard(expressionToEvaluate) {
+    GM_setClipboard(eval(expressionToEvaluate));
+}
+
+// URL Patterns
+// 1. define unique constansts for different patterns
+var GOOGLE = "google page";
+var ANY = "all pages";
+
+// 2. define URL patterns (the first match is used)
+var pageUrlPatterns = [
+    [GOOGLE, /https:\/\/www.google.*/],
+    [ANY, /.*/],
+];
+
+// 3. define command maps : for each url pattern, a map of [hotkey, target], where target is a pair [function to call, [function parameters]]
+var commandsMap = new Map([
+    [GOOGLE, new Map([
+        ["ZZT", [setClipboard, ["document.title"]]],
+        ["ZZU", [setClipboard, ["window.location.href"]]],
+    ])],
+    [ANY, new Map([
+        ["ZZU", [setClipboard, ["window.location.href"]]],
+    ])],
+]);
+
+//Shortcut detection engine
+var currentSequence = '';
+(function() {
+    'use strict';
+
+    function doc_keyUp(e) {
+        var pageType = pageUrlPatterns.filter(x=>window.location.href.match(x[1]));
+        if(pageType.length == 0)
+        {
+            currentSequence = '';
+            return;
+        }
+        pageType = pageType[0][0];
+
+        var endOfCommand = false;
+        var k = e.keyCode;
+        if(!(k >= 65 && k <= 90 || k >= 48 && e.keyCode <= 57))
+        {
+            currentSequence = '';
+            return;
+        }
+        currentSequence += String.fromCharCode(k);
+        var currentMap = commandsMap.get(pageType);
+        var currentCommand = currentMap.get(currentSequence);
+        if(currentCommand) {
+            currentCommand[0](...currentCommand[1]);
+        }
+        var isOver = [...currentMap.keys()].filter(cmdName => cmdName.startsWith(currentSequence) && cmdName != currentSequence).length == 0;
+        if(isOver) {
+            currentSequence = '';
+            return;
+        }
+    }
+    document.addEventListener('keyup', doc_keyUp, false);
+})();
